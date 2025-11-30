@@ -45,16 +45,20 @@ if is_development:
 else:
     # Production: Use specific origins
     env_origins = os.getenv("CORS_ORIGINS", "").split(",")
-    env_origins = [origin.strip() for origin in env_origins if origin.strip()]
+    env_origins = [origin.strip().rstrip("/") for origin in env_origins if origin.strip()]
     
     # Default production origins (GitHub Pages frontend)
+    # IMPORTANT: CORS origin is just protocol + domain, NOT the path
+    # Browser sends: https://hamza123545.github.io (not the /physical-ai-book path)
     default_origins = [
         "https://hamza123545.github.io",
-        "https://hamza123545.github.io/physical-ai-book",
     ]
     
     # Combine environment origins with defaults (avoid duplicates)
     all_origins = list(set(env_origins + default_origins)) if env_origins else default_origins
+    
+    # Log for debugging (remove in production if needed)
+    print(f"CORS allowed origins: {all_origins}")
     
     app.add_middleware(
         CORSMiddleware,
