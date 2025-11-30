@@ -3,7 +3,7 @@ services:
     name: physical-ai-backend
     runtime: docker
     dockerfilePath: ./Dockerfile
-    dockerContext: .
+    dockerContext: ./
     envVars:
       - key: DATABASE_URL
         sync: false

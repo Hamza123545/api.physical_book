@@ -2,17 +2,17 @@
 
 ## Quick Setup
 
-1. **Push to GitHub** - Make sure `backend/` folder is in your repository root
+1. **Push to GitHub** - Backend folder ko alag repository mein push kiya hai
 
 2. **Create Web Service on Render:**
    - Go to Render Dashboard
    - Click "New" → "Web Service"
-   - Connect your GitHub repository
+   - Connect your GitHub repository (backend repository)
    - Configure:
      - **Name**: `physical-ai-backend`
-     - **Root Directory**: `backend`
+     - **Root Directory**: `.` (root directory, koi subfolder nahi)
      - **Environment**: `Docker`
-     - **Dockerfile Path**: `backend/Dockerfile` (or just `Dockerfile` if root is backend)
+     - **Dockerfile Path**: `Dockerfile` (root mein hai)
 
 3. **Set Environment Variables:**
    ```
@@ -46,5 +46,6 @@ docker-compose up
 
 - **Build Command**: (Not needed - Docker handles it)
 - **Start Command**: (Not needed - Dockerfile CMD handles it)
-- **Root Directory**: `backend`
+- **Root Directory**: `.` (root directory - koi subfolder nahi)
+- **Dockerfile Path**: `Dockerfile` (root mein hai)
 
