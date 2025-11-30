@@ -3,7 +3,7 @@ Physical AI Textbook Backend - RAG Chatbot
 FastAPI application entry point with CORS and middleware configuration
 """
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -27,10 +27,48 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# Configure CORS
+# Configure CORS - MUST be added before routes
 # In development, allow all localhost origins (any port)
 # In production, use specific origins from environment
 is_development = os.getenv("ENVIRONMENT", "development").lower() == "development"
+
+# Parse CORS origins
+env_origins_str = os.getenv("CORS_ORIGINS", "")
+env_origins = []
+if env_origins_str:
+    # Parse and clean origins - remove paths and trailing slashes
+    for origin in env_origins_str.split(","):
+        origin = origin.strip()
+        if origin:
+            # Remove trailing slash
+            origin = origin.rstrip("/")
+            # Extract just protocol + domain (remove path if present)
+            # e.g., "https://hamza123545.github.io/physical-ai-book" -> "https://hamza123545.github.io"
+            try:
+                from urllib.parse import urlparse
+                parsed = urlparse(origin)
+                # Reconstruct with just scheme and netloc (no path)
+                clean_origin = f"{parsed.scheme}://{parsed.netloc}"
+                env_origins.append(clean_origin)
+            except Exception:
+                # Fallback: just use the origin as-is if parsing fails
+                env_origins.append(origin)
+
+# Default production origins (GitHub Pages frontend)
+# IMPORTANT: CORS origin is just protocol + domain, NOT the path
+# Browser sends: https://hamza123545.github.io (not the /physical-ai-book path)
+default_origins = [
+    "https://hamza123545.github.io",
+]
+
+# Combine environment origins with defaults (avoid duplicates)
+all_origins = list(set(env_origins + default_origins))
+
+# Log for debugging
+import logging
+logger = logging.getLogger(__name__)
+logger.info(f"CORS configuration - Environment: {is_development}, Allowed origins: {all_origins}")
+print(f"CORS allowed origins: {all_origins}")
 
 if is_development:
     # Development: Allow all localhost origins (any port)
@@ -44,43 +82,6 @@ if is_development:
     )
 else:
     # Production: Use specific origins
-    env_origins_str = os.getenv("CORS_ORIGINS", "")
-    env_origins = []
-    if env_origins_str:
-        # Parse and clean origins - remove paths and trailing slashes
-        for origin in env_origins_str.split(","):
-            origin = origin.strip()
-            if origin:
-                # Remove trailing slash
-                origin = origin.rstrip("/")
-                # Extract just protocol + domain (remove path if present)
-                # e.g., "https://hamza123545.github.io/physical-ai-book" -> "https://hamza123545.github.io"
-                try:
-                    from urllib.parse import urlparse
-                    parsed = urlparse(origin)
-                    # Reconstruct with just scheme and netloc (no path)
-                    clean_origin = f"{parsed.scheme}://{parsed.netloc}"
-                    env_origins.append(clean_origin)
-                except Exception:
-                    # Fallback: just use the origin as-is if parsing fails
-                    env_origins.append(origin)
-    
-    # Default production origins (GitHub Pages frontend)
-    # IMPORTANT: CORS origin is just protocol + domain, NOT the path
-    # Browser sends: https://hamza123545.github.io (not the /physical-ai-book path)
-    default_origins = [
-        "https://hamza123545.github.io",
-    ]
-    
-    # Combine environment origins with defaults (avoid duplicates)
-    all_origins = list(set(env_origins + default_origins))
-    
-    # Log for debugging
-    import logging
-    logger = logging.getLogger(__name__)
-    logger.info(f"CORS configuration - Environment: {is_development}, Allowed origins: {all_origins}")
-    print(f"CORS allowed origins: {all_origins}")
-    
     app.add_middleware(
         CORSMiddleware,
         allow_origins=all_origins,
@@ -111,6 +112,46 @@ async def health_check():
         "qdrant": "pending",    # Will update after Qdrant connection
         "openai": "pending"     # Will update after OpenAI client setup
     }
+
+
+# Explicit OPTIONS handler for all routes (MUST be before route includes)
+# This handles CORS preflight requests explicitly
+@app.options("/{full_path:path}")
+async def options_handler(full_path: str, request: Request):
+    """Handle CORS preflight requests explicitly"""
+    from fastapi import Response
+    
+    # Get origin from request
+    origin = request.headers.get("origin", "")
+    
+    # Log for debugging
+    logger.info(f"OPTIONS request for {full_path} from origin: {origin}")
+    print(f"OPTIONS request for {full_path} from origin: {origin}, Allowed origins: {all_origins}")
+    
+    # Check if origin is allowed
+    allowed_origin = None
+    if origin in all_origins:
+        allowed_origin = origin
+    elif origin and origin in default_origins:
+        allowed_origin = origin
+    elif all_origins:
+        # Use first allowed origin
+        allowed_origin = all_origins[0]
+    else:
+        allowed_origin = "*"
+    
+    logger.info(f"OPTIONS response with allowed origin: {allowed_origin}")
+    
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": allowed_origin,
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Max-Age": "3600",
+        }
+    )
 
 
 # API routes
