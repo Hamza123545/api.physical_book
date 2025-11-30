@@ -114,46 +114,6 @@ async def health_check():
     }
 
 
-# Explicit OPTIONS handler for all routes (MUST be before route includes)
-# This handles CORS preflight requests explicitly
-@app.options("/{full_path:path}")
-async def options_handler(full_path: str, request: Request):
-    """Handle CORS preflight requests explicitly"""
-    from fastapi import Response
-    
-    # Get origin from request
-    origin = request.headers.get("origin", "")
-    
-    # Log for debugging
-    logger.info(f"OPTIONS request for {full_path} from origin: {origin}")
-    print(f"OPTIONS request for {full_path} from origin: {origin}, Allowed origins: {all_origins}")
-    
-    # Check if origin is allowed
-    allowed_origin = None
-    if origin in all_origins:
-        allowed_origin = origin
-    elif origin and origin in default_origins:
-        allowed_origin = origin
-    elif all_origins:
-        # Use first allowed origin
-        allowed_origin = all_origins[0]
-    else:
-        allowed_origin = "*"
-    
-    logger.info(f"OPTIONS response with allowed origin: {allowed_origin}")
-    
-    return Response(
-        status_code=200,
-        headers={
-            "Access-Control-Allow-Origin": allowed_origin,
-            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
-            "Access-Control-Allow-Headers": "*",
-            "Access-Control-Allow-Credentials": "true",
-            "Access-Control-Max-Age": "3600",
-        }
-    )
-
-
 # API routes
 from app.api import embeddings_routes, chat_routes, chatkit_routes, content_routes
 from app.api.user import routes as user_routes
@@ -169,3 +129,39 @@ app.include_router(auth_routes.router, prefix="/api/auth", tags=["authentication
 app.include_router(user_routes.router, prefix="/api/user", tags=["user"])
 # Content personalization routes
 app.include_router(content_routes.router, prefix="/api/content", tags=["content"])
+
+
+# Explicit OPTIONS handler for all API routes (AFTER routes are included)
+# This handles CORS preflight requests explicitly as fallback
+@app.options("/api/{full_path:path}")
+async def options_api_handler(full_path: str, request: Request):
+    """Handle CORS preflight requests for API routes"""
+    from fastapi import Response
+    
+    # Get origin from request
+    origin = request.headers.get("origin", "")
+    
+    # Log for debugging
+    logger.info(f"OPTIONS request for /api/{full_path} from origin: {origin}")
+    print(f"OPTIONS request for /api/{full_path} from origin: {origin}, Allowed origins: {all_origins}")
+    
+    # Check if origin is allowed - always allow GitHub Pages origin
+    allowed_origin = "https://hamza123545.github.io"
+    if origin in all_origins:
+        allowed_origin = origin
+    elif origin and origin == "https://hamza123545.github.io":
+        allowed_origin = origin
+    
+    logger.info(f"OPTIONS response: 200 OK, Allowed-Origin: {allowed_origin}")
+    print(f"OPTIONS response: 200 OK, Allowed-Origin: {allowed_origin}")
+    
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": allowed_origin,
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Max-Age": "3600",
+        }
+    )
