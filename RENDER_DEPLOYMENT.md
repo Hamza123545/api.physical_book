@@ -7,12 +7,16 @@
 2. **Create Web Service on Render:**
    - Go to Render Dashboard
    - Click "New" → "Web Service"
-   - Connect your GitHub repository (backend repository)
+   - Connect your GitHub repository (backend repository: `api.physical_book`)
    - Configure:
      - **Name**: `physical-ai-backend`
-     - **Root Directory**: `.` (root directory, koi subfolder nahi)
+     - **Root Directory**: `.` (LEAVE EMPTY - root directory, koi subfolder nahi)
      - **Environment**: `Docker`
-     - **Dockerfile Path**: `Dockerfile` (root mein hai)
+     - **Dockerfile Path**: `Dockerfile` (root mein hai, exactly `Dockerfile` likho)
+     
+   **⚠️ IMPORTANT:**
+   - Root Directory ko **COMPLETELY EMPTY** rakho (`.` mat likho, bilkul khali chhodo)
+   - Dockerfile Path mein sirf `Dockerfile` likho (no `./` or path)
 
 3. **Set Environment Variables:**
    ```
