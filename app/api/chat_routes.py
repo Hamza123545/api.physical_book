@@ -27,7 +27,7 @@ router = APIRouter()
 logger = setup_logger(__name__)
 
 
-@router.post("/", response_model=ChatResponse, summary="General chat query")
+@router.post("", response_model=ChatResponse, summary="General chat query")
 async def chat(http_request: Request, request: ChatRequest, db: Session = Depends(get_db)):
     """
     Answer general questions about the textbook using RAG

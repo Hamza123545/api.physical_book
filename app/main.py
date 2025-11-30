@@ -119,16 +119,16 @@ from app.api import embeddings_routes, chat_routes, chatkit_routes, content_rout
 from app.api.user import routes as user_routes
 from app.auth import routes as auth_routes
 
-app.include_router(embeddings_routes.router, prefix="/api/embeddings", tags=["embeddings"])
-app.include_router(chat_routes.router, prefix="/api/chat", tags=["chat"])
+app.include_router(embeddings_routes.router, prefix="/api/embeddings", tags=["embeddings"], redirect_slashes=False)
+app.include_router(chat_routes.router, prefix="/api/chat", tags=["chat"], redirect_slashes=False)
 # ChatKit session endpoint (minimal backend needed for client_secret generation)
-app.include_router(chatkit_routes.router, prefix="/api/chatkit", tags=["chatkit"])
+app.include_router(chatkit_routes.router, prefix="/api/chatkit", tags=["chatkit"], redirect_slashes=False)
 # Authentication routes
-app.include_router(auth_routes.router, prefix="/api/auth", tags=["authentication"])
+app.include_router(auth_routes.router, prefix="/api/auth", tags=["authentication"], redirect_slashes=False)
 # User background routes
-app.include_router(user_routes.router, prefix="/api/user", tags=["user"])
+app.include_router(user_routes.router, prefix="/api/user", tags=["user"], redirect_slashes=False)
 # Content personalization routes
-app.include_router(content_routes.router, prefix="/api/content", tags=["content"])
+app.include_router(content_routes.router, prefix="/api/content", tags=["content"], redirect_slashes=False)
 
 
 # Explicit OPTIONS handler for all API routes (AFTER routes are included)
