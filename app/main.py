@@ -21,6 +21,7 @@ app = FastAPI(
     title="Physical AI Textbook - RAG Chatbot API",
     description="Backend API for RAG-based chatbot with Qdrant vector search and OpenAI GPT-4",
     version="0.1.0",
+    redirect_slashes=False,  # Disable automatic trailing slash redirects
 )
 
 # Add rate limiter to app state
@@ -119,16 +120,16 @@ from app.api import embeddings_routes, chat_routes, chatkit_routes, content_rout
 from app.api.user import routes as user_routes
 from app.auth import routes as auth_routes
 
-app.include_router(embeddings_routes.router, prefix="/api/embeddings", tags=["embeddings"], redirect_slashes=False)
-app.include_router(chat_routes.router, prefix="/api/chat", tags=["chat"], redirect_slashes=False)
+app.include_router(embeddings_routes.router, prefix="/api/embeddings", tags=["embeddings"])
+app.include_router(chat_routes.router, prefix="/api/chat", tags=["chat"])
 # ChatKit session endpoint (minimal backend needed for client_secret generation)
-app.include_router(chatkit_routes.router, prefix="/api/chatkit", tags=["chatkit"], redirect_slashes=False)
+app.include_router(chatkit_routes.router, prefix="/api/chatkit", tags=["chatkit"])
 # Authentication routes
-app.include_router(auth_routes.router, prefix="/api/auth", tags=["authentication"], redirect_slashes=False)
+app.include_router(auth_routes.router, prefix="/api/auth", tags=["authentication"])
 # User background routes
-app.include_router(user_routes.router, prefix="/api/user", tags=["user"], redirect_slashes=False)
+app.include_router(user_routes.router, prefix="/api/user", tags=["user"])
 # Content personalization routes
-app.include_router(content_routes.router, prefix="/api/content", tags=["content"], redirect_slashes=False)
+app.include_router(content_routes.router, prefix="/api/content", tags=["content"])
 
 
 # Explicit OPTIONS handler for all API routes (AFTER routes are included)
