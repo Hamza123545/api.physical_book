@@ -47,13 +47,18 @@ else:
     env_origins = os.getenv("CORS_ORIGINS", "").split(",")
     env_origins = [origin.strip() for origin in env_origins if origin.strip()]
     
-    if not env_origins:
-        # Fallback to default if not configured
-        env_origins = ["http://localhost:3000"]
+    # Default production origins (GitHub Pages frontend)
+    default_origins = [
+        "https://hamza123545.github.io",
+        "https://hamza123545.github.io/physical-ai-book",
+    ]
+    
+    # Combine environment origins with defaults (avoid duplicates)
+    all_origins = list(set(env_origins + default_origins)) if env_origins else default_origins
     
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=env_origins,
+        allow_origins=all_origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
         allow_headers=["*"],
