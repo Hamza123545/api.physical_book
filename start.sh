@@ -47,22 +47,20 @@ uv run alembic upgrade head || {
 }
 
 # Start the server
-# Render provides PORT environment variable
-PORT=${PORT:-8000}
+# Hugging Face Spaces uses PORT environment variable (default 7860)
+# Render uses PORT (default 8000)
+PORT=${PORT:-7860}
 echo "=========================================="
 echo "Starting server on port $PORT..."
 echo "=========================================="
 
 # Use exec to replace shell process with uvicorn
-# Add timeout settings for Render
-# Increased timeouts to handle slow database connections
+# Optimized for Hugging Face Spaces
 exec uv run uvicorn app.main:app \
     --host 0.0.0.0 \
     --port $PORT \
     --workers 1 \
-    --timeout-keep-alive 60 \
-    --timeout-graceful-shutdown 30 \
-    --limit-concurrency 1000 \
-    --backlog 2048 \
+    --timeout-keep-alive 30 \
+    --timeout-graceful-shutdown 10 \
     --log-level info
 

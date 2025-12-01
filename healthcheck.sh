@@ -1,7 +1,8 @@
 #!/bin/sh
 # Health check script for Docker
-# Uses PORT env var or defaults to 8000
+# Uses PORT env var or defaults to 7860 (Hugging Face Spaces default)
 
-PORT=${PORT:-8000}
-curl -f http://localhost:${PORT}/health || exit 1
+PORT=${PORT:-7860}
+# Try health endpoint, if it fails try root endpoint
+curl -f http://localhost:${PORT}/health 2>/dev/null || curl -f http://localhost:${PORT}/ 2>/dev/null || exit 1
 

@@ -30,13 +30,15 @@ RUN chmod +x start.sh healthcheck.sh
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
 
-# Expose port (Render will set PORT env var)
-EXPOSE 8000
+# Expose port (Hugging Face Spaces uses PORT env var, default 7860)
+EXPOSE 7860
 
 # Health check - uses healthcheck.sh which respects PORT env var
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD ./healthcheck.sh
 
-# Start the application using start script
+# Start the application
+# Hugging Face Spaces can use either app.py or start.sh
+# Using start.sh for consistency, but app.py is also available
 CMD ["./start.sh"]
 
