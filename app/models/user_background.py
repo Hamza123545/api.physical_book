@@ -7,12 +7,11 @@ Used for content personalization.
 
 from sqlalchemy import Column, String, Integer, ForeignKey, DateTime
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
 
-Base = declarative_base()
+from app.config import Base
 
 
 class UserBackground(Base):

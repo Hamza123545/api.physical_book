@@ -19,8 +19,8 @@ from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
-# Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Password hashing context - using pbkdf2_sha256 (no 72 byte limit like bcrypt)
+pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 
 class AuthService:
@@ -29,7 +29,7 @@ class AuthService:
     @staticmethod
     def hash_password(password: str) -> str:
         """
-        Hash a password using bcrypt.
+        Hash a password using pbkdf2_sha256.
 
         Args:
             password: Plain text password
@@ -51,7 +51,11 @@ class AuthService:
         Returns:
             True if password matches, False otherwise
         """
-        return pwd_context.verify(plain_password, hashed_password)
+        try:
+            return pwd_context.verify(plain_password, hashed_password)
+        except Exception as e:
+            logger.error(f"Password verification error: {e}")
+            return False
 
     @staticmethod
     def create_access_token(user_id: uuid.UUID, email: str) -> Tuple[str, datetime]:

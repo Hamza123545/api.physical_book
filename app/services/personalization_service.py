@@ -278,7 +278,13 @@ Adapt the above content to match this learner's profile. Maintain the same struc
 5. Preserve all important technical accuracy
 6. Make the content more engaging and relevant to this specific learner
 
-Return ONLY the personalized content in markdown format, without any preamble or explanation."""
+IMPORTANT OUTPUT FORMAT:
+- Return ONLY the personalized content in clean markdown format
+- Do NOT include any YAML frontmatter (no --- blocks at the start)
+- Do NOT include any JSX/MDX components (like <ComponentName />)
+- Do NOT include any import statements
+- Start directly with the main content (headings, paragraphs, etc.)
+- No preamble or explanation, just the content"""
 
         return prompt
 
@@ -323,8 +329,10 @@ Return ONLY the personalized content in markdown format, without any preamble or
             cached = PersonalizationService._check_cache(db, chapter_id, cache_key)
 
             if cached:
-                # Cache hit - return cached content
+                # Cache hit - return cached content (strip any leftover frontmatter)
                 cache_hit = True
+                cached_content = PersonalizationService.strip_frontmatter(cached.personalized_content)
+                cached_content = PersonalizationService.strip_custom_components(cached_content)
                 generation_time = int((time.time() - start_time) * 1000)
                 metadata = {
                     "model_used": cached.model_used,
@@ -333,7 +341,7 @@ Return ONLY the personalized content in markdown format, without any preamble or
                     "cached_at": cached.created_at.isoformat() if cached.created_at else None
                 }
                 logger.info(f"Returning cached content for user {user_id}, chapter {chapter_id}")
-                return cached.personalized_content, None, cache_hit, metadata
+                return cached_content, None, cache_hit, metadata
 
             # Cache miss - generate personalized content
             logger.info(f"Generating personalized content for user {user_id}, chapter {chapter_id}")
@@ -346,8 +354,13 @@ Return ONLY the personalized content in markdown format, without any preamble or
 
             # Call LiteLLM API (supports Gemini and OpenAI)
             # LiteLLM automatically routes to the correct provider based on model name
+            # Note: For direct LiteLLM calls, use "gemini/model-name" format (no "litellm/" prefix)
+            model_name = settings.CHAT_MODEL
+            if model_name.startswith("litellm/"):
+                model_name = model_name.replace("litellm/", "", 1)
+            
             response = completion(
-                model=settings.CHAT_MODEL,  # Can be "gemini/gemini-2.5-flash" or "gpt-4-turbo-preview"
+                model=model_name,  # Can be "gemini/gemini-2.5-flash" or "gpt-4-turbo-preview"
                 messages=[
                     {
                         "role": "system",
@@ -363,6 +376,9 @@ Return ONLY the personalized content in markdown format, without any preamble or
             )
 
             personalized_content = response.choices[0].message.content
+            # Clean the LLM response (strip any frontmatter or components it might have included)
+            personalized_content = PersonalizationService.strip_frontmatter(personalized_content)
+            personalized_content = PersonalizationService.strip_custom_components(personalized_content)
             generation_time = int((time.time() - start_time) * 1000)
 
             # Calculate tokens used
@@ -375,18 +391,18 @@ Return ONLY the personalized content in markdown format, without any preamble or
                 cache_key,
                 original_content,
                 personalized_content,
-                settings.CHAT_MODEL,
+                model_name,
                 tokens_used,
                 generation_time
             )
 
             metadata = {
-                "model_used": settings.CHAT_MODEL,
+                "model_used": model_name,
                 "tokens_used": tokens_used,
                 "generation_time_ms": generation_time
             }
 
-            logger.info(f"Successfully personalized content for user {user_id} using {settings.CHAT_MODEL} (took {generation_time}ms, {tokens_used} tokens)")
+            logger.info(f"Successfully personalized content for user {user_id} using {model_name} (took {generation_time}ms, {tokens_used} tokens)")
 
             return personalized_content, None, cache_hit, metadata
 
@@ -396,6 +412,34 @@ Return ONLY the personalized content in markdown format, without any preamble or
             metadata = {"generation_time_ms": generation_time}
             # On error, return original content
             return original_content, f"Personalization failed: {str(e)}", False, metadata
+
+    @staticmethod
+    def strip_frontmatter(content: str) -> str:
+        """
+        Strip YAML frontmatter from markdown content.
+        Frontmatter is content between --- markers at the start of the file.
+        """
+        import re
+        # Match frontmatter: starts with ---, ends with ---
+        frontmatter_pattern = r'^---\s*\n.*?\n---\s*\n'
+        content = re.sub(frontmatter_pattern, '', content, flags=re.DOTALL)
+        return content.strip()
+
+    @staticmethod
+    def strip_custom_components(content: str) -> str:
+        """
+        Remove custom MDX/JSX components that won't render in plain markdown.
+        """
+        import re
+        # Remove self-closing JSX components like <LearningObjectives ... />
+        content = re.sub(r'<[A-Z][a-zA-Z]*\s+[^>]*\/>', '', content)
+        # Remove JSX components with content like <Component>...</Component>
+        content = re.sub(r'<[A-Z][a-zA-Z]*[^>]*>.*?<\/[A-Z][a-zA-Z]*>', '', content, flags=re.DOTALL)
+        # Remove import statements
+        content = re.sub(r'^import\s+.*$', '', content, flags=re.MULTILINE)
+        # Clean up multiple blank lines
+        content = re.sub(r'\n{3,}', '\n\n', content)
+        return content.strip()
 
     @staticmethod
     def read_chapter_content(chapter_path: str) -> Optional[str]:
@@ -409,16 +453,48 @@ Return ONLY the personalized content in markdown format, without any preamble or
             File content as string, or None if not found
         """
         try:
+            # Normalize path separators
+            chapter_path = chapter_path.replace('/', os.sep).replace('\\', os.sep)
+            
             # Construct full path (assuming chapters are in book-source/docs/)
             base_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "book-source", "docs")
-            full_path = os.path.join(base_path, chapter_path)
-
-            if not os.path.exists(full_path):
-                logger.error(f"Chapter file not found: {full_path}")
+            base_path = os.path.normpath(base_path)
+            
+            # Try multiple path patterns:
+            # 1. Direct file (e.g., intro.md)
+            # 2. Directory with index.md (e.g., chapter-01/index.md)
+            # 3. File with .md extension added
+            possible_paths = []
+            
+            # If path already has .md extension
+            if chapter_path.endswith('.md'):
+                possible_paths.append(os.path.join(base_path, chapter_path))
+            else:
+                # Try as directory with index.md first (most common case)
+                possible_paths.append(os.path.join(base_path, chapter_path, "index.md"))
+                # Then try adding .md extension
+                possible_paths.append(os.path.join(base_path, chapter_path + ".md"))
+            
+            full_path = None
+            for path in possible_paths:
+                normalized_path = os.path.normpath(path)
+                logger.info(f"Checking path: {normalized_path}")
+                if os.path.exists(normalized_path):
+                    full_path = normalized_path
+                    break
+            
+            if not full_path:
+                logger.error(f"Chapter file not found. Tried paths: {possible_paths}")
                 return None
 
             with open(full_path, 'r', encoding='utf-8') as f:
                 content = f.read()
+
+            # Strip YAML frontmatter (content between --- markers at start)
+            content = PersonalizationService.strip_frontmatter(content)
+            
+            # Remove custom MDX/JSX components that won't render properly
+            content = PersonalizationService.strip_custom_components(content)
 
             logger.info(f"Successfully read chapter content from {chapter_path}")
             return content
