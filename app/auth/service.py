@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 import uuid
 
 from app.models.user import User
+from app.models.user_background import UserBackground
 from app.auth.config import auth_settings, ACCESS_TOKEN_EXPIRE, REFRESH_TOKEN_EXPIRE
 from app.auth.schemas import UserSignupRequest, UserSigninRequest, TokenData
 from app.utils.logger import setup_logger
@@ -176,8 +177,29 @@ class AuthService:
                 is_active=True,
                 is_verified=False  # Email verification can be added later
             )
-
+            
             db.add(new_user)
+            db.flush()  # Flush to get the user ID
+            
+            # Create user background if personalization data provided
+            if (signup_data.software_experience or 
+                signup_data.hardware_experience or 
+                signup_data.robotics_experience or 
+                signup_data.current_role):
+                
+                # Use provided values or defaults
+                user_background = UserBackground(
+                    user_id=new_user.id,
+                    software_experience=signup_data.software_experience or "beginner",
+                    hardware_experience=signup_data.hardware_experience or "beginner",
+                    robotics_experience=signup_data.robotics_experience or "none",
+                    current_role=signup_data.current_role or "student",
+                    programming_languages=signup_data.programming_languages,
+                    learning_goals=signup_data.learning_goals,
+                    industry=signup_data.industry
+                )
+                db.add(user_background)
+
             db.commit()
             db.refresh(new_user)
 
