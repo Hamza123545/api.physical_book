@@ -25,12 +25,26 @@ if not DATABASE_URL:
     DATABASE_URL = "sqlite:///./physical_ai_textbook.db"
 
 # Create SQLAlchemy engine with connection pooling
+# Add connection timeout for Render deployment
+connect_args = {}
+if DATABASE_URL and DATABASE_URL.startswith("postgresql"):
+    # PostgreSQL connection args for better reliability on Render
+    connect_args = {
+        "connect_timeout": 10,  # 10 second connection timeout
+        "keepalives": 1,
+        "keepalives_idle": 30,
+        "keepalives_interval": 10,
+        "keepalives_count": 5,
+    }
+
 engine = create_engine(
     DATABASE_URL,
-    pool_size=10,
-    max_overflow=20,
+    pool_size=5,  # Reduced for Render free tier
+    max_overflow=10,  # Reduced for Render free tier
     pool_pre_ping=True,  # Verify connections before use
-    pool_recycle=3600,   # Recycle connections after 1 hour
+    pool_recycle=1800,   # Recycle connections after 30 minutes (shorter for Render)
+    pool_timeout=30,  # Wait up to 30 seconds for connection from pool
+    connect_args=connect_args,
     echo=os.getenv("ENVIRONMENT") == "development"  # Log SQL in development
 )
 
@@ -48,7 +62,14 @@ def get_db():
     """
     db = SessionLocal()
     try:
+        # Test connection before yielding
+        from sqlalchemy import text
+        db.execute(text("SELECT 1"))
         yield db
+    except Exception as e:
+        logger.error(f"Database connection error: {e}")
+        db.rollback()
+        raise
     finally:
         db.close()
 

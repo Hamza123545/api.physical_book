@@ -60,6 +60,8 @@ if env_origins_str:
 # Browser sends: https://hamza123545.github.io (not the /physical-ai-book path)
 default_origins = [
     "https://hamza123545.github.io",
+    "http://localhost:3000",
+    "http://localhost:3001",
 ]
 
 # Combine environment origins with defaults (avoid duplicates)
@@ -82,12 +84,14 @@ if is_development:
         expose_headers=["*"],
     )
 else:
-    # Production: Use specific origins
+    # Production: Use specific origins with regex support for GitHub Pages
+    # Allow both exact match and any subdomain/path under GitHub Pages
     app.add_middleware(
         CORSMiddleware,
         allow_origins=all_origins,
+        allow_origin_regex=r"https://hamza123545\.github\.io.*",  # Allow any path under GitHub Pages
         allow_credentials=True,
-        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"],
         allow_headers=["*"],
         expose_headers=["*"],
         max_age=3600,  # Cache preflight for 1 hour
@@ -106,13 +110,75 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Detailed health check for monitoring"""
-    return {
+    """Detailed health check for monitoring and Docker health checks"""
+    from app.config import engine, QDRANT_CLIENT
+    from sqlalchemy import text
+    
+    health_status = {
         "status": "healthy",
-        "database": "pending",  # Will update after DB connection
-        "qdrant": "pending",    # Will update after Qdrant connection
-        "openai": "pending"     # Will update after OpenAI client setup
+        "service": "Physical AI Textbook RAG Chatbot",
+        "version": "0.1.0"
     }
+    
+    # Check database connection
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        health_status["database"] = "connected"
+    except Exception as e:
+        health_status["database"] = f"error: {str(e)[:50]}"
+        health_status["status"] = "degraded"
+    
+    # Check Qdrant connection
+    try:
+        if QDRANT_CLIENT:
+            QDRANT_CLIENT.get_collections()
+            health_status["qdrant"] = "connected"
+        else:
+            health_status["qdrant"] = "not_configured"
+    except Exception as e:
+        health_status["qdrant"] = f"error: {str(e)[:50]}"
+        health_status["status"] = "degraded"
+    
+    return health_status
+
+
+# Middleware to add CORS headers to all responses (backup for CORSMiddleware)
+@app.middleware("http")
+async def add_cors_headers(request: Request, call_next):
+    """Add CORS headers to all responses"""
+    import re
+    from urllib.parse import urlparse
+    
+    response = await call_next(request)
+    
+    # Get origin from request
+    origin = request.headers.get("origin", "")
+    
+    # Determine allowed origin
+    allowed_origin = None
+    
+    # Check if origin is in allowed list
+    if origin in all_origins:
+        allowed_origin = origin
+    # Check if origin matches GitHub Pages pattern
+    elif origin and re.match(r"https://hamza123545\.github\.io.*", origin):
+        # Extract base origin (without path)
+        parsed = urlparse(origin)
+        allowed_origin = f"{parsed.scheme}://{parsed.netloc}"
+    # Check if origin is localhost (for development)
+    elif origin and re.match(r"https?://(localhost|127\.0\.0\.1)(:\d+)?", origin):
+        allowed_origin = origin
+    
+    # If origin is allowed, add CORS headers
+    if allowed_origin:
+        response.headers["Access-Control-Allow-Origin"] = allowed_origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        response.headers["Access-Control-Expose-Headers"] = "*"
+    
+    return response
 
 
 # API routes
@@ -138,6 +204,7 @@ app.include_router(content_routes.router, prefix="/api/content", tags=["content"
 async def options_api_handler(full_path: str, request: Request):
     """Handle CORS preflight requests for API routes"""
     from fastapi import Response
+    import re
     
     # Get origin from request
     origin = request.headers.get("origin", "")
@@ -146,12 +213,25 @@ async def options_api_handler(full_path: str, request: Request):
     logger.info(f"OPTIONS request for /api/{full_path} from origin: {origin}")
     print(f"OPTIONS request for /api/{full_path} from origin: {origin}, Allowed origins: {all_origins}")
     
-    # Check if origin is allowed - always allow GitHub Pages origin
-    allowed_origin = "https://hamza123545.github.io"
+    # Determine allowed origin
+    allowed_origin = None
+    
+    # Check if origin is in allowed list
     if origin in all_origins:
         allowed_origin = origin
-    elif origin and origin == "https://hamza123545.github.io":
+    # Check if origin matches GitHub Pages pattern
+    elif origin and re.match(r"https://hamza123545\.github\.io.*", origin):
+        # Extract base origin (without path)
+        from urllib.parse import urlparse
+        parsed = urlparse(origin)
+        allowed_origin = f"{parsed.scheme}://{parsed.netloc}"
+    # Check if origin is localhost (for development)
+    elif origin and re.match(r"https?://(localhost|127\.0\.0\.1)(:\d+)?", origin):
         allowed_origin = origin
+    
+    # If no match, use default GitHub Pages origin
+    if not allowed_origin:
+        allowed_origin = "https://hamza123545.github.io"
     
     logger.info(f"OPTIONS response: 200 OK, Allowed-Origin: {allowed_origin}")
     print(f"OPTIONS response: 200 OK, Allowed-Origin: {allowed_origin}")
@@ -160,7 +240,7 @@ async def options_api_handler(full_path: str, request: Request):
         status_code=200,
         headers={
             "Access-Control-Allow-Origin": allowed_origin,
-            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD",
             "Access-Control-Allow-Headers": "*",
             "Access-Control-Allow-Credentials": "true",
             "Access-Control-Max-Age": "3600",

@@ -141,6 +141,26 @@ async def signin(
         HTTPException: If signin fails (invalid credentials, inactive account, etc.)
     """
     try:
+        logger.info(f"Signin attempt for email: {signin_data.email}")
+        
+        # Test database connection
+        try:
+            from sqlalchemy import text
+            db.execute(text("SELECT 1"))
+        except Exception as db_error:
+            logger.error(f"Database connection failed in signin: {db_error}")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "success": False,
+                    "error": {
+                        "code": "DATABASE_ERROR",
+                        "message": "Database connection unavailable",
+                        "details": {}
+                    }
+                }
+            )
+        
         # Authenticate user
         user, error = await AuthService.signin_user(db, signin_data)
 
@@ -180,7 +200,9 @@ async def signin(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Unexpected error in signin endpoint: {e}")
+        logger.error(f"Unexpected error in signin endpoint: {e}", exc_info=True)
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={

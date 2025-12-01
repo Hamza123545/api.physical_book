@@ -8,6 +8,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     gcc \
     postgresql-client \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv for faster dependency management
@@ -22,15 +23,19 @@ RUN uv sync --frozen || uv sync
 # Copy application code
 COPY . .
 
-# Make start script executable
-RUN chmod +x start.sh || true
+# Make scripts executable
+RUN chmod +x start.sh healthcheck.sh
+
+# Create non-root user for security
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+USER appuser
 
 # Expose port (Render will set PORT env var)
 EXPOSE 8000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
+# Health check - uses healthcheck.sh which respects PORT env var
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD ./healthcheck.sh
 
 # Start the application using start script
 CMD ["./start.sh"]
