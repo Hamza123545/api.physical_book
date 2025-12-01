@@ -97,15 +97,26 @@ async def signup(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Unexpected error in signup endpoint: {e}")
+        logger.error(f"Unexpected error in signup endpoint: {e}", exc_info=True)
+        import traceback
+        traceback_str = traceback.format_exc()
+        logger.error(f"Traceback: {traceback_str}")
+        
+        # Return a more user-friendly error message
+        error_message = "An unexpected error occurred. Please try again later."
+        if "timeout" in str(e).lower() or "connection" in str(e).lower():
+            error_message = "Database connection timeout. Please try again."
+        elif "duplicate" in str(e).lower() or "unique" in str(e).lower():
+            error_message = "User with this email already exists."
+        
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={
                 "success": False,
                 "error": {
                     "code": "INTERNAL_ERROR",
-                    "message": "An unexpected error occurred",
-                    "details": {"error": str(e)}
+                    "message": error_message,
+                    "details": {}
                 }
             }
         )
@@ -143,25 +154,7 @@ async def signin(
     try:
         logger.info(f"Signin attempt for email: {signin_data.email}")
         
-        # Test database connection
-        try:
-            from sqlalchemy import text
-            db.execute(text("SELECT 1"))
-        except Exception as db_error:
-            logger.error(f"Database connection failed in signin: {db_error}")
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail={
-                    "success": False,
-                    "error": {
-                        "code": "DATABASE_ERROR",
-                        "message": "Database connection unavailable",
-                        "details": {}
-                    }
-                }
-            )
-        
-        # Authenticate user
+        # Authenticate user (signin_user is async but doesn't need to be - keeping for consistency)
         user, error = await AuthService.signin_user(db, signin_data)
 
         if error:
@@ -202,15 +195,22 @@ async def signin(
     except Exception as e:
         logger.error(f"Unexpected error in signin endpoint: {e}", exc_info=True)
         import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
+        traceback_str = traceback.format_exc()
+        logger.error(f"Traceback: {traceback_str}")
+        
+        # Return a more user-friendly error message
+        error_message = "An unexpected error occurred. Please try again later."
+        if "timeout" in str(e).lower() or "connection" in str(e).lower():
+            error_message = "Database connection timeout. Please try again."
+        
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={
                 "success": False,
                 "error": {
                     "code": "INTERNAL_ERROR",
-                    "message": "An unexpected error occurred",
-                    "details": {"error": str(e)}
+                    "message": error_message,
+                    "details": {}
                 }
             }
         )

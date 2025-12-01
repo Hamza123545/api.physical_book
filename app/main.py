@@ -143,40 +143,44 @@ async def health_check():
     return health_status
 
 
+
 # Middleware to add CORS headers to all responses (backup for CORSMiddleware)
+# This runs AFTER CORSMiddleware to ensure headers are always set
 @app.middleware("http")
-async def add_cors_headers(request: Request, call_next):
-    """Add CORS headers to all responses"""
+async def add_cors_headers_backup(request: Request, call_next):
+    """Add CORS headers to all responses as backup"""
     import re
     from urllib.parse import urlparse
     
     response = await call_next(request)
     
-    # Get origin from request
-    origin = request.headers.get("origin", "")
-    
-    # Determine allowed origin
-    allowed_origin = None
-    
-    # Check if origin is in allowed list
-    if origin in all_origins:
-        allowed_origin = origin
-    # Check if origin matches GitHub Pages pattern
-    elif origin and re.match(r"https://hamza123545\.github\.io.*", origin):
-        # Extract base origin (without path)
-        parsed = urlparse(origin)
-        allowed_origin = f"{parsed.scheme}://{parsed.netloc}"
-    # Check if origin is localhost (for development)
-    elif origin and re.match(r"https?://(localhost|127\.0\.0\.1)(:\d+)?", origin):
-        allowed_origin = origin
-    
-    # If origin is allowed, add CORS headers
-    if allowed_origin:
-        response.headers["Access-Control-Allow-Origin"] = allowed_origin
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD"
-        response.headers["Access-Control-Allow-Headers"] = "*"
-        response.headers["Access-Control-Expose-Headers"] = "*"
+    # Only add headers if not already set by CORSMiddleware
+    if "Access-Control-Allow-Origin" not in response.headers:
+        # Get origin from request
+        origin = request.headers.get("origin", "")
+        
+        # Determine allowed origin
+        allowed_origin = None
+        
+        # Check if origin is in allowed list
+        if origin in all_origins:
+            allowed_origin = origin
+        # Check if origin matches GitHub Pages pattern
+        elif origin and re.match(r"https://hamza123545\.github\.io.*", origin):
+            # Extract base origin (without path)
+            parsed = urlparse(origin)
+            allowed_origin = f"{parsed.scheme}://{parsed.netloc}"
+        # Check if origin is localhost (for development)
+        elif origin and re.match(r"https?://(localhost|127\.0\.0\.1)(:\d+)?", origin):
+            allowed_origin = origin
+        
+        # If origin is allowed, add CORS headers
+        if allowed_origin:
+            response.headers["Access-Control-Allow-Origin"] = allowed_origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD"
+            response.headers["Access-Control-Allow-Headers"] = "*"
+            response.headers["Access-Control-Expose-Headers"] = "*"
     
     return response
 

@@ -55,11 +55,14 @@ echo "=========================================="
 
 # Use exec to replace shell process with uvicorn
 # Add timeout settings for Render
+# Increased timeouts to handle slow database connections
 exec uv run uvicorn app.main:app \
     --host 0.0.0.0 \
     --port $PORT \
     --workers 1 \
-    --timeout-keep-alive 30 \
+    --timeout-keep-alive 60 \
     --timeout-graceful-shutdown 30 \
+    --limit-concurrency 1000 \
+    --backlog 2048 \
     --log-level info
 

@@ -233,24 +233,36 @@ class AuthService:
             If failed: (None, error_message)
         """
         try:
-            # Find user by email
-            user = db.query(User).filter(User.email == signin_data.email).first()
+            # Find user by email (case-insensitive)
+            user = db.query(User).filter(
+                User.email.ilike(signin_data.email)  # Case-insensitive email match
+            ).first()
+            
             if not user:
+                logger.warning(f"Signin failed: User not found for email: {signin_data.email}")
                 return None, "Invalid email or password"
 
             # Verify password
-            if not AuthService.verify_password(signin_data.password, user.hashed_password):
+            try:
+                password_valid = AuthService.verify_password(signin_data.password, user.hashed_password)
+            except Exception as pwd_error:
+                logger.error(f"Password verification error: {pwd_error}")
+                return None, "Invalid email or password"
+            
+            if not password_valid:
+                logger.warning(f"Signin failed: Invalid password for email: {signin_data.email}")
                 return None, "Invalid email or password"
 
             # Check if account is active
             if not user.is_active:
+                logger.warning(f"Signin failed: Inactive account for email: {signin_data.email}")
                 return None, "Account is inactive. Please contact support."
 
             logger.info(f"User signed in successfully: {user.email}")
             return user, None
 
         except Exception as e:
-            logger.error(f"Unexpected error during signin: {e}")
+            logger.error(f"Unexpected error during signin: {e}", exc_info=True)
             return None, f"An error occurred during signin: {str(e)}"
 
     @staticmethod
